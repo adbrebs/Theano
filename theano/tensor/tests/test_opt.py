@@ -6497,6 +6497,47 @@ def test_local_merge_alloc():
     assert_raises((AssertionError, ValueError), f, 0., 1, 2, 5, 3, 4)
 
 
+def test_local_log_sum_exp1():
+    # Tests if optimization is applied
+    x = matrix('x')
+    y = T.log(T.sum(T.exp(x), axis=1))
+    MODE = theano.compile.get_default_mode().including('local_log_sum_exp')
+    f = function([x], y, mode=MODE)
+
+    assert (theano.scalar.basic.maximum
+            in [node.op.scalar_op for node in f.maker.fgraph.toposort()
+                if (node.op and hasattr(node.op, 'scalar_op'))])
+
+
+def test_local_log_sum_exp2():
+    # Tests if the optimization works (result is correct) around 1.0
+    x = matrix('x')
+    y = T.log(T.sum(T.exp(x), axis=1))
+    MODE = theano.compile.get_default_mode().including('local_log_sum_exp')
+    f = function([x], y, mode=MODE)
+
+    x_val = 1.0 + numpy.random.rand(4, 3).astype(config.floatX)/10.0
+
+    naive_ret = numpy.log(numpy.sum(numpy.exp(x_val), axis=1))
+    optimised_ret = f(x_val)
+
+    assert numpy.allclose(naive_ret, optimised_ret)
+
+
+def test_local_log_sum_exp3():
+    # Tests if the optimization works (result is correct) for extreme value 100
+    x = vector('x')
+    y = T.log(T.sum(T.exp(x), axis=0))
+    MODE = theano.compile.get_default_mode().including('local_log_sum_exp')
+    f = function([x], y, mode=MODE)
+
+    x_val = numpy.array([-100., 100.]).astype(config.floatX)
+
+    optimised_ret = f(x_val)
+
+    assert numpy.allclose(optimised_ret, 100.)
+
+
 if __name__ == '__main__':
     t = TestMakeVector('setUp')
     t.setUp()
